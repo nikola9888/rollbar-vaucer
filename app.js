@@ -1,0 +1,19 @@
+const STORAGE_KEY="rollbar_vouchers_v1";
+const $=id=>document.getElementById(id);
+const getVouchers=()=>JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+const saveVouchers=v=>localStorage.setItem(STORAGE_KEY,JSON.stringify(v));
+const normalize=v=>String(v||"").trim().toUpperCase().replace(/\s+/g,"");
+function makeCode(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="ROLL-";for(let i=0;i<6;i++)s+=chars[Math.floor(Math.random()*chars.length)];return s}
+function dateOnly(d){return new Intl.DateTimeFormat("sr-RS",{day:"2-digit",month:"2-digit",year:"numeric"}).format(d)}
+function findVoucher(code){return getVouchers().find(v=>v.code===normalize(code))}
+function renderQR(code){const box=$("qr");box.innerHTML="";if(window.QRCode)QRCode.toCanvas(code,{width:160,margin:0},(err,canvas)=>{if(!err)box.appendChild(canvas)})}
+function showVoucher(v){$("voucherResult").classList.remove("hidden");$("resultCode").textContent=v.code;$("resultExpiry").textContent=dateOnly(new Date(v.expiresAt));$("resultTitle").textContent=v.reward;const expired=new Date(v.expiresAt)<new Date();const used=v.status==="used";$("resultStatus").textContent=expired?"ISTEKAO":used?"ISKORIŠĆEN":"AKTIVAN";$("resultStatus").style.color=(expired||used)?"#999":"#ff6a00";renderQR(v.code);$("voucherResult").scrollIntoView({behavior:"smooth",block:"center"})}
+function checkCode(){const code=normalize($("voucherCode").value);const v=findVoucher(code);$("message").textContent="";if(!code){$("message").textContent="Unesi kod vaučera.";return}if(!v){$("message").textContent="Vaučer nije pronađen.";return}showVoucher(v);$("message").textContent="Vaučer je pronađen."}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function renderList(){const list=$("voucherList"),all=getVouchers();if(!all.length){list.innerHTML='<p style="color:#666">Još nema lokalno kreiranih vaučera.</p>';return}list.innerHTML=all.slice().reverse().map(v=>'<div class="list-item"><div><b>'+v.code+'</b><small>'+escapeHtml(v.reward)+' · '+(v.status==="used"?"ISKORIŠĆEN":"AKTIVAN")+'</small></div><button data-code="'+v.code+'" class="use-btn">ISKORISTI</button></div>').join("");document.querySelectorAll(".use-btn").forEach(b=>b.onclick=()=>{const a=getVouchers(),x=a.find(v=>v.code===b.dataset.code);if(x){x.status="used";x.usedAt=new Date().toISOString();saveVouchers(a);renderList();showVoucher(x)}})}
+$("checkBtn").onclick=checkCode;
+$("voucherCode").addEventListener("keydown",e=>{if(e.key==="Enter")checkCode()});
+$("adminBtn").onclick=()=>{$("adminPanel").classList.toggle("hidden");renderList();$("adminPanel").scrollIntoView({behavior:"smooth"})};
+$("createBtn").onclick=()=>{const reward=$("reward").value.trim(),days=Math.max(1,Math.min(3650,Number($("days").value)||30));if(!reward){$("created").classList.remove("hidden");$("created").textContent="Unesi pogodnost.";return}let code=makeCode();while(findVoucher(code))code=makeCode();const expires=new Date(Date.now()+days*86400000);const v={id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),code,reward,expiresAt:expires.toISOString(),status:"active",createdAt:new Date().toISOString()};const all=getVouchers();all.push(v);saveVouchers(all);$("created").classList.remove("hidden");$("created").innerHTML="Kreiran: <b>"+v.code+"</b><br>Vredi do "+dateOnly(expires);$("reward").value="";renderList();showVoucher(v)};
+$("clearBtn").onclick=()=>{if(confirm("Obrisati sve lokalne test vaučere?")){localStorage.removeItem(STORAGE_KEY);renderList();$("voucherResult").classList.add("hidden")}};
+const params=new URLSearchParams(location.search);if(params.get("code")){$("voucherCode").value=normalize(params.get("code"));checkCode()}renderList();
