@@ -6,7 +6,16 @@ const normalize=v=>String(v||"").trim().toUpperCase().replace(/\s+/g,"");
 function makeCode(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="ROLL-";for(let i=0;i<6;i++)s+=chars[Math.floor(Math.random()*chars.length)];return s}
 function dateOnly(d){return new Intl.DateTimeFormat("sr-RS",{day:"2-digit",month:"2-digit",year:"numeric"}).format(d)}
 function findVoucher(code){return getVouchers().find(v=>v.code===normalize(code))}
-function renderQR(code){const box=$("qr");box.innerHTML="";const target=location.protocol==="file:"?code:(location.origin+location.pathname+"?code="+encodeURIComponent(code));if(window.QRCode)QRCode.toCanvas(target,{width:160,margin:0},(err,canvas)=>{if(!err)box.appendChild(canvas)})}
+function renderQR(code){
+  const box=$("qr");
+  box.innerHTML="";
+  const target=location.origin+location.pathname+"?code="+encodeURIComponent(code);
+  if(typeof QRCode==="function"){
+    new QRCode(box,{text:target,width:160,height:160,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+  }else{
+    box.innerHTML='<span style="color:#777;font-size:11px">QR biblioteka nije učitana.</span>';
+  }
+}
 function showVoucher(v){$("voucherResult").classList.remove("hidden");$("resultCode").textContent=v.code;$("resultExpiry").textContent=dateOnly(new Date(v.expiresAt));$("resultTitle").textContent=v.reward;const expired=new Date(v.expiresAt)<new Date();const used=v.status==="used";$("resultStatus").textContent=expired?"ISTEKAO":used?"ISKORIŠĆEN":"AKTIVAN";$("resultStatus").style.color=(expired||used)?"#999":"#ff6a00";renderQR(v.code);$("voucherResult").scrollIntoView({behavior:"smooth",block:"center"})}
 function checkCode(){const code=normalize($("voucherCode").value);const v=findVoucher(code);$("message").textContent="";if(!code){$("message").textContent="Unesi kod vaučera.";return}if(!v){$("message").textContent="Vaučer nije pronađen.";return}showVoucher(v);$("message").textContent="Vaučer je pronađen."}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
