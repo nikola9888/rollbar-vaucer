@@ -83,7 +83,7 @@ $("createBtn").onclick=async()=>{
   $("created").classList.remove("hidden");
   if(!reward){$("created").textContent="Unesi pogodnost.";return}
   const {data,error}=await db.rpc("create_voucher",{p_reward:reward,p_days:days});
-  if(error){$("created").textContent="Nije moguće kreirati vaučer.";return}
+  if(error){$("created").textContent="Greška: "+(error.message||error.details||error.hint||"Nepoznata greška");console.error("create_voucher:",error);return}
   $("created").innerHTML="Kreiran: <b>"+escapeHtml(data.code)+"</b><br>Vredi do "+dateOnly(new Date(data.expires_at));
   $("reward").value=""; await renderList(); showVoucher(data);
 };
