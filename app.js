@@ -4,6 +4,8 @@ const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
 const normalize=v=>String(v||"").trim().toUpperCase().replace(/\s+/g,"");
 
+let adminRefreshTimer=null;
+
 function dateOnly(d){return new Intl.DateTimeFormat("sr-RS",{day:"2-digit",month:"2-digit",year:"numeric"}).format(d)}
 function renderQR(code){
   const box=$("qr"); box.innerHTML="";
@@ -44,10 +46,32 @@ async function renderList(){
   }).join("");
   document.querySelectorAll(".use-btn").forEach(b=>b.onclick=()=>useVoucher(b.dataset.code));
 }
+function startAdminRefresh(){
+  if(adminRefreshTimer)return;
+  adminRefreshTimer=setInterval(async()=>{
+    const {data:{session}}=await db.auth.getSession();
+    if(session&&await isAdmin()&&!$("dashboardPanel").classList.contains("hidden")){
+      await renderList();
+    }else{
+      clearInterval(adminRefreshTimer);
+      adminRefreshTimer=null;
+    }
+  },3000);
+}
+function stopAdminRefresh(){
+  if(adminRefreshTimer){
+    clearInterval(adminRefreshTimer);
+    adminRefreshTimer=null;
+  }
+}
 async function useVoucher(code){
   if(!confirm("Iskoristiti vaučer "+code+"?"))return;
   const {data,error}=await db.rpc("use_voucher",{p_code:code});
-  if(error){alert("Vaučer nije moguće iskoristiti.");return}
+  if(error){
+    await renderList();
+    alert("Vaučer više nije aktivan. Lista je osvežena.");
+    return;
+  }
   await renderList(); showVoucher(data);
 }
 async function isAdmin(){
@@ -58,9 +82,9 @@ async function openAdmin(){
   $("adminPanel").classList.remove("hidden");
   const {data:{session}}=await db.auth.getSession();
   if(session&&await isAdmin()){
-    $("loginPanel").classList.add("hidden"); $("dashboardPanel").classList.remove("hidden"); await renderList();
+    $("loginPanel").classList.add("hidden"); $("dashboardPanel").classList.remove("hidden"); await renderList(); startAdminRefresh();
   }else{
-    $("dashboardPanel").classList.add("hidden"); $("loginPanel").classList.remove("hidden");
+    $("dashboardPanel").classList.add("hidden"); $("loginPanel").classList.remove("hidden"); stopAdminRefresh();
   }
   $("adminPanel").scrollIntoView({behavior:"smooth"});
 }
@@ -74,9 +98,9 @@ $("loginBtn").onclick=async()=>{
   const {error}=await db.auth.signInWithPassword({email,password});
   if(error){$("loginMessage").textContent="Pogrešan email ili lozinka.";return}
   if(!(await isAdmin())){await db.auth.signOut();$("loginMessage").textContent="Ovaj nalog nema admin pristup.";return}
-  $("loginPanel").classList.add("hidden");$("dashboardPanel").classList.remove("hidden");await renderList();
+  $("loginPanel").classList.add("hidden");$("dashboardPanel").classList.remove("hidden");await renderList();startAdminRefresh();
 };
-$("logoutBtn").onclick=async()=>{await db.auth.signOut();$("dashboardPanel").classList.add("hidden");$("loginPanel").classList.remove("hidden")};
+$("logoutBtn").onclick=async()=>{await db.auth.signOut();stopAdminRefresh();$("dashboardPanel").classList.add("hidden");$("loginPanel").classList.remove("hidden")};
 $("refreshBtn").onclick=renderList;
 $("createBtn").onclick=async()=>{
   const reward=$("reward").value.trim(),days=Math.max(1,Math.min(3650,Number($("days").value)||30));
